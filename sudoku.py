@@ -1,7 +1,8 @@
 ## Sudoku solver ##
 ## by A.C.B. ##
 
-from board import Board
+from board import Board, Element
+from typing import List
 
 # TODO not hard-code
 def initBoard() -> Board:
@@ -42,19 +43,62 @@ def initBoard() -> Board:
 
     return board
 
-def main():
-    board = initBoard()
+def choice_to_boards(board: Board, choice: tuple) -> List[Board]:
+    choice_e = board.grid[choice[0]][choice[1]]
+    print("Choice is {} at {}".format(choice_e, choice))
+    boards = []
+    for val in choice_e.likelies:
+        b = Board(board)
+        b.grid[choice[0]][choice[1]].fix(val)
+        if b.validate():
+            boards.append(b)
+    return boards
 
-    brush_count = 0
+# stats state
+brush_count = 0
+total_dumps = 0
+
+def groom(board: Board) -> bool:
+    global brush_count
+    global total_dumps
+
     brushes = 1
-    total_dumps = 0
-    while(brushes > 0): # TODO: do we need multiple passes?
+    while(brushes > 0):
+        print(board)
         brushes = board.brush()
         print("Brushing #{}, changed #{} elements".format(brush_count, brushes))
         brush_count += 1
         total_dumps += brushes
+
+        choice = board.shiniest_element()
+        if choice is None:
+            print("No choices left!")
+            break
+        else:
+            candidate_boards = choice_to_boards(board, choice)
+            if len(candidate_boards) == 0:
+                return False
+            elif len(candidate_boards) == 1:
+                board = candidate_boards[0]
+            else:
+                for board in candidate_boards:
+                    res = groom(board)
+                    if res:
+                        board = res
+                        return True
+
+    return board.done()
+
+def main():
+    board = initBoard()
+
+    if (groom(board)):
+        print("Solved board.")
+    else:
+        print("No solution found.")
     
     print("Total dump() calls: " + str(total_dumps))
+    print("Total brush() calls: " + str(brush_count))
     print(board)
 
 if __name__ == "__main__":

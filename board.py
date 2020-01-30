@@ -7,7 +7,6 @@ from typing import List, Union
 
 class Element:
     def __init__(self, fixed: int = 0):
-        self.impossibles = set([])
         self.likelies = {}
         if fixed == 0:
             for i in range(1, D + 1):
@@ -32,6 +31,12 @@ class Element:
             str_arr.append("{" + ",".join(sorted(s)) + "}:" + p)
         return " + ".join(str_arr)
 
+    def p_space(self) -> int:
+        return len(self.likelies)
+
+    def impossible(self) -> bool:
+        return len(self.likelies) == 0
+
     def fixed(self) -> bool:
         return len(self.likelies) == 1
     
@@ -47,36 +52,45 @@ class Element:
                 return NEVER
 
     def fix(self, i: int):
-        assert i not in self.impossibles
+        assert i in self.likelies
 
         for j in self.likelies:
             if j == i:
                 self.likelies[j] = ALWAYS
-                continue
-            self.impossibles.add(j)
 
         self.likelies = {}
         self.likelies[i] = ALWAYS
     
     def bump(self, i) -> bool:
-        if i in self.impossibles:
+        if i not in self.likelies:
             return False
 
         p = self.likelies.pop(i).value
         p_diff = p / len(self.likelies)
-        self.impossibles.add(i)
 
         for j in self.likelies:
             self.likelies[j] += p_diff
         return True
 
 class Board:
-    def __init__(self):
+    def __init__(self, other: 'Board' = None):
         self.grid = []
-        for _ in range(0, D):
-            self.grid.append([])
-            for d in range(0, D):
-                self.grid[-1].append(Element())
+        if other is None:
+            for _ in range(0, D):
+                self.grid.append([])
+                for d in range(0, D):
+                    self.grid[-1].append(Element())
+        else: # deepcopy!
+            for r in range(0, D):
+                self.grid.append([])
+                for c in range(0, D):
+                    e = other.grid[r][c]
+                    e2 = Element()
+                    e2.likelies = {}
+                    for l in e.likelies:
+                        e2.likelies[l] = Probability(e.likelies[l].value)
+
+                    self.grid[-1].append(e2)
     
     def __str__(self):
         s_arr = []
@@ -101,6 +115,20 @@ class Board:
             s += "\n"
         
         return s
+    
+    def done(self):
+        for row in self.grid:
+            for e in row:
+                if not e.fixed():
+                    return False
+        return True
+
+    def validate(self):
+        for row in self.grid:
+            for e in row:
+                if e.impossible():
+                    return False
+        return True
 
     # NOTE: uses 3 Constraints:
     # - rows
@@ -135,6 +163,21 @@ class Board:
 
         return res
 
+    # get highest non-zero probability elements
+    def shiniest_element(self) -> tuple:
+        ret = None
+        last_e = None
+        for r in range(0, len(self.grid)):
+            for c in range(0, len(self.grid[r])):
+                e = self.grid[r][c]
+                if e.fixed():
+                    continue
+                elif ret is None or e.p_space() < last_e.p_space():
+                    ret = (r, c)
+                    last_e = e
+
+        return ret
+
     # "brush" probabilities to eliminate conflicting element probabilities
     def brush(self) -> int:
         changed = 0
@@ -157,7 +200,7 @@ class Board:
                     for e in c:
                         if e.fixed():
                             continue
-                        if (e.bump(d)):
+                        if e.bump(d):
                             changed += 1
 
         return changed
