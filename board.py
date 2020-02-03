@@ -15,6 +15,9 @@ class Element:
             self.fix(fixed)
     
     def __str__(self):
+        if self.fixed():
+            return str(self.get())
+
         probs = {}
         # group by probability
         for i in self.likelies.items():
@@ -106,7 +109,7 @@ class Board:
         s = ""
         for r in range(0, len(s_arr)):
             if r % 3 == 0:
-                s += "━" * len(s_arr[r])*(max_len + 1) + "\n"
+                s += "━" * len(s_arr[r])*(max_len + 1) + "━━\n"
             for c in range(0, len(s_arr)):
                 if c % 3 == 0:
                     s += "┃"
@@ -124,10 +127,30 @@ class Board:
         return True
 
     def validate(self):
+        # first pass: is anything "impossible"?
         for row in self.grid:
             for e in row:
                 if e.impossible():
                     return False
+        
+        # second pass: is anything "conflicting"?
+        for i, constraint in enumerate(self.constraints()):
+            cons_s = "Row"
+            if i == 1:
+                cons_s = "Col"
+            elif i == 2:
+                cons_s = "Block"
+
+            for j, path in enumerate(constraint):
+                seen = set([])
+                for k, e in enumerate(path):
+                    if e.fixed():
+                        digit = e.get()
+                        if digit in seen:
+                            print("Conflict at {}#{}, position {}, digit {}".format(cons_s, j, k, digit))
+                            return False
+                        else:
+                            seen.add(digit)
         return True
 
     # NOTE: uses 3 Constraints:
@@ -136,10 +159,13 @@ class Board:
     # - 3x3 blocks
     def constraints(self) -> List[List[List[Element]]]:
         res = [[], [], []]
-        bc = 0
-        blocks = 0
+        bo = -3
         for r in range(0, len(self.grid)):
             res[0].append([])
+
+            if r % 3 == 0:
+                bo += 3
+
             for c in range(0, len(self.grid[r])):
                 # row
                 e = self.grid[r][c]
@@ -151,15 +177,10 @@ class Board:
                 res[1][c].append(e)
 
                 # block
-                if blocks <= len(res[2]):
+                if r % 3 == 0 and c % 3 == 0:
                     res[2].append([])
-                res[2][-1].append(e)
 
-                if bc % D == 0:
-                    bc = 0
-                    blocks += 1
-                else:
-                    bc += 1
+                res[2][(c // 3) + bo].append(e)
 
         return res
 
